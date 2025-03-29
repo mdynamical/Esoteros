@@ -5,8 +5,8 @@
 }
 
 @font-face {
-  font-family: 'TitleFont';
-  src: url('./src/assets/textfont/AncientModernTales-a7Po.ttf') format('woff');
+  font-family: 'AncientModernTale';
+  src: url('./assets/fonts/mainfont/main.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
 }
@@ -44,7 +44,7 @@ main {
   width: 350px;
   height: 600px; 
   border-radius: 40px;
-  font-family: 'TitleFont';
+  font-family: 'AncientModernTale';
 }
 
 input {
@@ -69,9 +69,9 @@ a {
 h1 {
   padding: 20px;
   margin-left: 30px;
-  font-size: 30pxm;
+  font-size: 30px;
   line-height: 1.1;
-  color: #600000
+  color: #600000;
 }
 
 button {
@@ -115,7 +115,7 @@ padding: 10px;
 .title {
   display: flex;
   justify-content: center;
-  font-family: 'TitleFont';
+  font-family: 'AncientModernTale';
   font-size: 130px;
   color: #600000
 }
