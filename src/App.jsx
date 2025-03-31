@@ -1,34 +1,14 @@
-import { useState } from 'react'
-import './App.css'
-import video from './assets/video.mp4'
+import LoginPage from './pages/loginpage'
+import GamePage from './pages/gamepage'
+import { Routes, Route} from 'react-router-dom'
 
-function MainScreen() {
-  return (
-    <div className='background'>
-        <video className='clip'autoPlay loop muted>
-          <source src={video} type="video/mp4"/>
-        </video>
-      <main>
-        <div className='titleDiv'><h1 className='title'>Esoteros</h1></div>
-        <h1>The tale never told</h1>
-        <div className='inputScreen'>
-          <input placeholder='Email'></input>
-          <input placeholder='Password'></input>
-          <p>Forgot password? <a href="http://localhost:5173/" >   Reset</a></p>  
-        </div>
-        <div className='loginDiv'>
-          <button className='loginButton'> Login </button>
-           <p>No account? <a href="http://localhost:5173/">   Register </a></p> 
-        </div>
-      </main>
-    </div>
-  )
-}
 
 function App() {
-  const [count, setCount] = useState(0)
   return (
-    MainScreen()
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/game" element={<GamePage />} />
+    </Routes>
   )
 }
 
