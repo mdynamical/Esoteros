@@ -26,13 +26,7 @@
     border: 1px solid black;
 }
 
-.game-grid {
-    display: grid;
-    grid-template-rows: repeat(60, 40px);
-    grid-template-columns: repeat(30, 40px);
-    gap: 0px;
-    background-color: gray;
-    height: 600px;
-    width: 1200px;
-
+.game-canvas {
+    z-index: 1;
+    background-color: tomato;
 }

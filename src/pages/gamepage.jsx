@@ -9,11 +9,7 @@ function GamePage() {
     console.log(mapdata)
     return (
         <div className="game-background">
-            <main className="game-grid">
-                {mapdata.mapgrid && mapdata.mapgrid.flat().map((tile, tileIndex) => (
-                    <div key={tileIndex} className={`tile tile-${tile}`}></div>
-                ))}
-            </main>
+            <canvas id="gameCanvas" className="game-canvas"></canvas>
         </div>
     )
 }
