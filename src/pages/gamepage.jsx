@@ -1,16 +1,26 @@
-import mapdata from "/src/maps/mapconfig.json"
+import PropTypes from 'prop-types';
+import { forwardRef, useEffect, useLayoutEffect, useRef } from 'react';
+import Game from '../game/main';
+import { EventBus } from '../game/EventBus';
 import "../styles/gamepage.css"
 
-{/*<pre>{JSON.stringify(mapdata, null, 2)}</pre> */}
-
-
+/*<pre>{JSON.stringify(mapdata, null, 2)}</pre> */
 
 function GamePage() {
-    console.log(mapdata)
+    const gameContainerRef = useRef(null);
+    
+    useEffect(() => {
+        if (gameContainerRef.current) {
+          const game = Game(gameContainerRef.current);
+    
+          return () => {
+            game.destroy(true);
+          };
+        }
+      }, []);
+    
     return (
-        <div className="game-background">
-            <canvas id="gameCanvas" className="game-canvas"></canvas>
-        </div>
+        <div className="game-background" ref={gameContainerRef}/>
     )
 }
 
