@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import mapGen from "/src/maps/mapgen";
+import mapGen from "../mapgen";
 
 class OverworldScene extends Scene {
     constructor() {
@@ -12,7 +12,7 @@ class OverworldScene extends Scene {
 
     preload() {
         this.load.image('grass', '../assets/textures/grass.png');
-        this.load.json('mapdata', '/src/maps/mapconfig.json');
+        this.load.json('mapdata', '../assets/maps/mapconfig.json');
         
     }
 
