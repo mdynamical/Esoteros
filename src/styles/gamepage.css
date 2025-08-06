@@ -7,7 +7,6 @@
 
 .game-background {
     position: relative;  
-    background-image: url('./assets/download.png');
     height: 100vh; 
     width: 100vw; 
     display: flex;
@@ -16,21 +15,16 @@
     align-items: center;
     background-size: cover;
     background-position: center;
-    background-color: #222222;
+    background-color: #000000;
     padding: 0;
     margin: 0;
 }
 
-.tile {
-    height: 32px;
-    width: 32px;
-    background-color: rgb(128, 15, 0);
-
-}
 
 canvas {
-    border: 1px solid black;
-    background-color: #af1111;
     border-radius: 32px;
+    width: 1344px;
+    height: 768px;
+    background-color: black;
 }
 
