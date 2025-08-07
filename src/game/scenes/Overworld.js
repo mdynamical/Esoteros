@@ -65,7 +65,7 @@ class OverworldScene extends Scene {
         this.player.setScene(this, 'player');
         this.devil.setScene(this, 'devil');
 
-        //LIGHT
+        /*LIGHT
         this.lights.enable();
         this.lights.setAmbientColor(0x111111);
         layer1.setPipeline('Light2D');
@@ -80,7 +80,7 @@ class OverworldScene extends Scene {
             0xffffff,    // light color
             1           // intensity
         );
-        this.player.lightSource = this.playerLight
+        this.player.lightSource = this.playerLight */
 
         
         //CAM
@@ -91,12 +91,16 @@ class OverworldScene extends Scene {
         
         //KEYS
         this.pressedKeys = new Set();
+        this.pressedDirectionalKeys = new Set()
+
         this.input.keyboard.on('keydown', (event) => {
-            this.pressedKeys.add(event.code);
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.add(event.code)}
+            else {this.pressedKeys.add(event.code)};
         });
 
         this.input.keyboard.on('keyup', (event) => {
-        this.pressedKeys.delete(event.code);
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.delete(event.code)}
+            else {this.pressedKeys.delete(event.code)};
         });
 
         //
@@ -106,7 +110,6 @@ class OverworldScene extends Scene {
         });
 
         this.physics.world.setBounds(0, 0, 9999999, 999999);
-        //this.physics.world.createDebugGraphic()
         this.physics.world.drawDebug = false;
 
         EventBus.emit('gameReady');
@@ -117,22 +120,25 @@ class OverworldScene extends Scene {
         this.player.update();
         this.devil.update();
 
-        for (const key of this.pressedKeys) {
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(key) && !this.player.moving) {
-                if (key === 'KeyW') {
+        if (this.pressedDirectionalKeys && !this.player.moving) {
+            let lastKey  = [...this.pressedDirectionalKeys][this.pressedDirectionalKeys.size - 1];
+            if (lastKey === 'KeyW') {
                     this.player.setMove('W');     
                 }
-                else if (key === 'KeyA') {
+                else if (lastKey === 'KeyA') {
                     this.player.setMove('A');
                 }
-                else if (key === 'KeyS') {
+                else if (lastKey === 'KeyS') {
                     this.player.setMove('S');
 
                 }
-                else if (key === 'KeyD') {
+                else if (lastKey === 'KeyD') {
                     this.player.setMove('D');
-                }  
-            }
+                }
+        }
+
+
+        for (const key of this.pressedKeys) {
             // console.log(`Key is being held: ${key}`);
             if (key === 'ShiftLeft') {
                     this.player.run()

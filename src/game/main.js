@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { Player, Enemy} from './elements';
 import OverworldScene from './scenes/Overworld';
 
-const player = new Player('Dummy', [55, 35]);
-const devil = new Enemy('Devil', [60, 40]);
+const player = new Player('Dummy', {'x': 54, 'y': 45});
+const devil = new Enemy('Devil', {'x':59, 'y':40});
 
 const overworld = new OverworldScene([player])
 

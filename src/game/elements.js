@@ -9,13 +9,10 @@ class Attributes {
 }
 
 class Character {
-    constructor(name, pos, attr, layer=0, scene=null, sprite=null) {
+    constructor(name, tilePos, attr, layer=0, scene=null, sprite=null) {
         this.name = name; 
+        this.tilePos = tilePos;
         this.attr = attr; 
-        if (Array.isArray(pos)) {
-            this.pos = [pos[0] * TILESIZE, pos[1] * TILESIZE];
-        }
-
         this.layer = layer;
         this.sprite = sprite;
 
@@ -23,28 +20,37 @@ class Character {
         if (this.scene != null) {
             this.setScene(this.scene, 'player');
         }
-        this.moving = false
-        this.speed = 2 // Speed should always be a factor of TILESIZE
-        this.nextTile = null
 
-        this.hitboxHeight = 1 // In tiles
-        this.hitboxWidth = 1
-        this.hitboxTiles = [] // Should be used if hitbox is more than a single tile, for calculating collisions
+        this.moving = false
+        this.speed = 2 
+        this.nextTile = null
+        this.curTile = null
+    
+        /* The offsets are applied from the Top(Y=0) left(X=0) position of the sprite and move the hitbox
+        +1 tile for each bottom(+Y) right(+X) increment. Custom hitboxes are necessary because Phaser's
+        sprite.body object is completely broken and should be avoided if you want a functional collision system */ 
+        this.hitboxOffsetX = 0 
+        this.hitboxOffsetY = 1
+        this.hitbox = {
+            'x': 0,
+            'y': 0,
+            'right': 0,
+            'bottom': 0,
+        }
 
         this.lightSource = null
+        this.debug = false
     }
 
     collisionCheck(dir) {
         // Always use getPos() instead of sprite.coord so the offset is automatically applied
-        let xPos = this.getPosX()
-        let yPos = this.getPosY()
         let movement = TILESIZE;
         let tile
         
         if (dir === 'W' || dir === 'A') {movement = -movement}
 
-        if (dir === 'W' || dir === 'S') {tile = this.scene.layer1.getTileAtWorldXY(xPos, yPos + movement)}
-        else if (dir === 'A' || dir === 'D') {tile = this.scene.layer1.getTileAtWorldXY(xPos + movement, yPos)}
+        if (dir === 'W' || dir === 'S') {tile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y + movement)}
+        else if (dir === 'A' || dir === 'D') {tile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x + movement, this.hitbox.y)}
         
         /* DEBUG
             if (tile.properties.collision) {
@@ -60,61 +66,81 @@ class Character {
     }
     setScene(scene, spriteName) {
         this.scene = scene;
-        this.sprite = this.scene.physics.add.sprite(this.pos[0], this.pos[1], spriteName) 
+        this.sprite = this.scene.physics.add.sprite(this.tilePos.x * TILESIZE, this.tilePos.y * TILESIZE, spriteName) 
         this.sprite.setOrigin(0, 0);
-        this.hitboxWidth = this.sprite.width / TILESIZE; // recalculate hitbox if the sprite's width > TILESIZE
 
-        /* These offsets are necessary to make the sprite's body collide with the tilemap correctly after scaling down 
-        the hitbox, as Phaser draws the coordinates of a sprite's body starting from it's center rather than top left position.
-        The offsets should always be SpriteCoord - (TILESIZE * hitboxSize) for X or Y coords, although scaling
-        the X axis isn't usually necessary. Always apply the offsets to any position calculations if you scale down the
-        hitbox, the X offset was not tested fully so only scale the X axis down only if you really need to                                        */
-        this.yOffset = this.sprite.height - (TILESIZE * this.hitboxHeight); 
-        this.xOffset = 0
+        // Offsets the hitbox relative to the sprite, based on previous input, I don't reccomend adding an X offset
+        // as it isn't useful for anything and can mess up the collision system
+        let yOffset = this.sprite.height - (TILESIZE * this.hitboxOffsetY); 
+        let xOffset = 0
 
-        this.sprite.body.setSize(TILESIZE * this.hitboxWidth, TILESIZE  * this.hitboxHeight); // Scales the hitbox based on the chosen size
-        this.sprite.body.setOffset(this.xOffset, this.yOffset); // Apply the offsets to hitbox
-        
-        this.sprite.setCollideWorldBounds(true)
+        this.hitbox.x = this.sprite.x + xOffset
+        this.hitbox.y = this.sprite.y + yOffset
+        this.hitbox.right = this.hitbox.x + (TILESIZE)
 
+        /* let hitbox = this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y)
+        let sprite = this.scene.layer1.getTileAtWorldXY(this.tilePos.x * TILESIZE,  this.tilePos.y * TILESIZE)
+        hitbox.tint = '0x000000'
+        hitbox.tintFill = true
+        sprite.tint = '0x880808'
+        sprite.tintFill = true                           DEBUG                                                  */ 
     }
 
     setMove(dir) {
         if (this.moving || this.collisionCheck(dir)) return;
-        if (dir === 'W') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.getPosX(), this.getPosY()-TILESIZE)}
-        if (dir === 'A') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.getPosX()-TILESIZE, this.getPosY())}
-        if (dir === 'S') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.getPosX(), this.getPosY()+TILESIZE)}
-        if (dir === 'D') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.getPosX() +TILESIZE, this.getPosY())}
+        if (dir === 'W') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y-TILESIZE)}
+        if (dir === 'A') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x-TILESIZE, this.hitbox.y)}
+        if (dir === 'S') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y+TILESIZE)}
+        if (dir === 'D') {this.nextTile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x +TILESIZE, this.hitbox.y)}
 
         this.moving = dir;
         this.move()
     }
 
-    move() {
+    move() { 
         let movement = this.speed
-        if (this.moving === 'W' || this.moving === 'A') {movement = -this.speed} // For moving left or up, the movement is negative
-        if (this.altSpeed) {movement *= 2}
 
-        if (this.moving === 'W' || this.moving === 'S') {
-            this.sprite.y += movement
-            if (this.sprite.y % TILESIZE === 0) {
+        if (this.altSpeed) {movement = this.altSpeed}
+
+        if (this.moving === 'W') {
+            this.hitbox.y -= movement
+            if (this.hitbox.y <= this.nextTile.pixelY) {
                 this.moving = false;
+                this.hitbox.y = this.nextTile.pixelY
+                if (this.path) {this.nextTile = this.path.shift()}
 
             }
         
         }
-        else if (this.moving === 'A' || this.moving === 'D') {
-            this.sprite.x += movement
-            if (this.sprite.x % TILESIZE === 0) {
+        else if (this.moving === 'A') {
+            this.hitbox.x -= movement
+            if (this.hitbox.x <= this.nextTile.pixelX) {
                 this.moving = false;
+                this.hitbox.x = this.nextTile.pixelX
+
+                if (this.path) {this.nextTile = this.path.shift()}
 
             }
         }
-    }
 
-    update() {
-        if (this.moving) {this.move()}
-        this.updateLight()
+        else if (this.moving === 'S') {
+            this.hitbox.y += movement
+            if (this.hitbox.y >= this.nextTile.pixelY) {
+                this.moving = false;
+                this.hitbox.y = this.nextTile.pixelY
+                if (this.path) {this.nextTile = this.path.shift()}
+
+            }
+        }
+
+        else if (this.moving === 'D') {
+            this.hitbox.x += movement
+            if (this.hitbox.x >= this.nextTile.pixelX ) {
+                this.moving = false;
+                this.hitbox.x = this.nextTile.pixelX
+                if (this.path) {this.nextTile = this.path.shift()}
+            }
+        }
     }
 
     updateLight() {
@@ -125,12 +151,11 @@ class Character {
         }
     }
 
-    getPosX() {
-        return (this.sprite.x + this.xOffset)
-    }
-    // Always use these for collision calculations if you offset the hitbox
-    getPosY() {
-        return (this.sprite.y + this.yOffset)
+    updatePos() {
+        this.sprite.x = this.hitbox.x - (TILESIZE * this.hitboxOffsetX)
+        this.sprite.y = this.hitbox.y - (TILESIZE * this.hitboxOffsetY)
+        
+        this.updateLight()
     }
 }
 
@@ -138,17 +163,16 @@ class Player extends Character {
     constructor(name,  pos=[0, 0], scene=null, layer=0, attr=null, inv=null) {
         super(name, pos, attr, layer, scene);
         this.inv = inv
-        this.runStamina = 50
+        this.runStamina = 100000
         this.altSpeed = 0
+        this.speed = 2.5
 
     }
 
     run() {
         if (this.runStamina <= 0) {this.altSpeed = 0; return}
-        if (this.moving) {return}
-        this.altSpeed = 4
+        this.altSpeed = this.speed * 1.5
         --this.runStamina 
-        console.log(this.runStamina)
     }
 
     recover() {
@@ -157,29 +181,29 @@ class Player extends Character {
 
     update() {
         if (this.moving) {this.move()}
-        this.updateLight()
         this.recover()
+        this.updatePos()
+
     }
 }
 
 class Enemy extends Character {
-    constructor(name, pos=[0, 0], scene=null, layer=0, attr=null) {
-        super(name, pos, attr, layer, scene);
+    constructor(name, tilePos, scene=null, layer=0, attr=null) {
+        super(name, tilePos, attr, layer, scene);
         this.path = []
+        this.tilePos = tilePos
         this.chase = false;
         this.target = null;
-        this.speed = 8
+        this.speed = 5.5
     }
 
     pathToTile(targetTile) {
         // My goal here was to create an algorithm similar to A*, I decided to go with a greedy BFS search
         if (!targetTile) {return}
-        let xPos = this.getPosX()
-        let yPos = this.getPosY()
         
         const absDist = (curTile, targetTile) => (Math.abs(targetTile.pixelX - curTile.pixelX) + Math.abs(targetTile.pixelY - curTile.pixelY)) / TILESIZE
 
-        let curTile = this.scene.layer1.getTileAtWorldXY(xPos, yPos);
+        let curTile = this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y);
         if (!curTile || curTile == this.scene.layer1.getTileAtWorldXY(targetTile.pixelX, targetTile.pixelY)) return [];
 
         let discoveredTiles = new Set();
@@ -224,8 +248,9 @@ class Enemy extends Character {
         }
     
     //if (correctPath) {
-    //     for (let tile of correctPath) {tile.tint = "0x000000"; tile.tintFill = true}
+    //     for (let tile of correctPath) {tile.tint = "0x011100"; tile.tintFill = true}
     //} DEBUG
+
 
     return correctPath
 
@@ -235,50 +260,25 @@ class Enemy extends Character {
         if (this.moving) {this.move(); return}
         if (!this.chase || !this.target) {return}
 
-        let targetTile = this.scene.layer1.getTileAtWorldXY(this.target.getPosX(), this.target.getPosY())
+        let targetTile = this.scene.layer1.getTileAtWorldXY(this.target.hitbox.x, this.target.hitbox.y)
         if (this.target.moving) {targetTile = this.target.nextTile}
         this.path = this.pathToTile(targetTile)
 
-        let nextTile = this.path.shift()
-        if (!nextTile) {return}
+        this.nextTile = this.path.shift()
+        if (!this.nextTile) {return}
 
-        let diffX = nextTile.pixelX - this.getPosX()
-        let diffY = nextTile.pixelY - this.getPosY()
+        let diffX = this.nextTile.pixelX - this.hitbox.x
+        let diffY = this.nextTile.pixelY - this.hitbox.y
         if (diffY === -TILESIZE) {this.moving = 'W'}
         else if (diffX === -TILESIZE) {this.moving = 'A'}
         else if (diffY === TILESIZE) {this.moving = 'S'}
         else if (diffX === TILESIZE) {this.moving = 'D'}    
     }
 
-    move() {
-        let movement = this.speed
-         if (this.moving === 'W' || this.moving === 'A') {movement = -this.speed} // For moving left or up, the movement is negative
-
-         if (this.moving === 'W' || this.moving === 'S') {
-            this.sprite.y += movement
-            
-            if (this.sprite.y % TILESIZE === 0) {
-                this.moving = false;
-
-            }
-        
-        }
-        else if (this.moving === 'A' || this.moving === 'D') {
-            this.sprite.x += movement
-            if (this.sprite.x % TILESIZE === 0) {
-                this.moving = false;
-
-            }
-        }
-        if (this.target) {
-
-        }
-    }
-
     checkEncounter() {
         if (!this.target) {return}
-        if (this.scene.layer1.getTileAtWorldXY(this.getPosX(), this.getPosY()) == 
-           this.scene.layer1.getTileAtWorldXY(this.target.getPosX(), this.target.getPosY())) {
+        if (this.scene.layer1.getTileAtWorldXY(this.hitbox.x, this.hitbox.y) == 
+           this.scene.layer1.getTileAtWorldXY(this.target.hitbox.x, this.target.hitbox.y)) {
            let fight = new Fight()
         }
 
@@ -287,6 +287,8 @@ class Enemy extends Character {
     update() {
         this.setMove()
         this.checkEncounter()
+        this.updatePos()
+        
     }
 }
 
