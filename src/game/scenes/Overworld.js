@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT } from '../elements';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, Fight } from '../elements';
 
 
 class OverworldScene extends Scene {
@@ -12,6 +12,37 @@ class OverworldScene extends Scene {
 
     }
 
+    checkEncounter() {
+        let encounter = false
+        this.enemies = this.actors.slice(1)
+
+        for (let enemy of this.enemies) {
+            if (enemy.nextTile === this.player.curTile || this.player.nextTile === enemy.curTile) {
+                encounter = true
+                this.player.resetMovement()
+                enemy.resetMovement()
+            }
+            
+            if (this.player.nextTile === enemy.nextTile) {
+                this.player.moving = null
+                this.player.resetMovement()
+            }
+
+            else if (enemy.nextTile === this.player.nextTile) {
+                enemy.path = []
+                enemy.resetMovement()
+            }
+            
+        }
+
+        return encounter
+    }
+
+    startEncounter() {
+        this.battle = new Fight(this, this.actors)
+
+    }
+
     init(data) {
         this.actors = data.actors;
     }
@@ -19,7 +50,7 @@ class OverworldScene extends Scene {
     preload() {
         this.load.image('spritesheet', '/assets/textures/testspritesheet1.png');
         this.load.image('player', '/assets/textures/elbert.png');
-        this.load.image('devil', '/assets/textures/Thefella.png');
+        this.load.image('devil', '/assets/textures/thefella.png');
         this.load.tilemapTiledJSON('map', '/assets/maps/testmap1.json');
     }
 
@@ -30,15 +61,15 @@ class OverworldScene extends Scene {
         // (^Params) 1 -> spritesheet file name 2 -> spritesheet name defined in preload
         // this.physics.world.drawDebug = true;
         
-
         const getO1 = map.getObjectLayer('1')
         const objects1 = getO1.objects;
 
-        //const layer0 = map.createLayer('0', tileset, 0, 0);
+        const layer0 = map.createLayer('0', tileset, 0, 0);
         const layer1 = map.createLayer('1', tileset, 0, 0);
         this.layer1 = layer1;
 
-        
+        this.physics.world.setBounds(0, 0, 9999999, 999999);
+
         //DEBUG COLLISION
         /* const graphics = this.add.graphics();
         graphics.lineStyle(2, 0xff0000, 1);
@@ -56,42 +87,41 @@ class OverworldScene extends Scene {
             }
         } */
 
-        
-
-        
         //ACTORS
         this.player = this.actors[0];
         this.devil = this.actors[1];
         this.player.setScene(this, 'player');
         this.devil.setScene(this, 'devil');
 
-        /*LIGHT
+        this.devil.target = this.player
+
+        // LIGHT
         this.lights.enable();
         this.lights.setAmbientColor(0x111111);
         layer1.setPipeline('Light2D');
 
-        this.player.sprite.setPipeline('Light2D');
-        this.devil.sprite.setPipeline('Light2D');
+        this.player.textures.sprite.setPipeline('Light2D');
+        this.devil.textures.sprite.setPipeline('Light2D');
 
         this.playerLight = this.lights.addLight(
-            this.player.sprite.x,
-            this.player.sprite.y,
-            75,         // radius
+            this.player.textures.sprite.x,
+            this.player.textures.sprite.y,
+            150,         // radius
             0xffffff,    // light color
             1           // intensity
         );
-        this.player.lightSource = this.playerLight */
+        this.player.lightSource = this.playerLight
 
-        
         //CAM
         const cam = this.cameras.main;
-        cam.startFollow(this.player.sprite, true, 0.05, 0.05);
+        cam.startFollow(this.player.textures.sprite, true, 0.05, 0.05);
         cam.setBounds(0, 0, 9999999, 999999)
         cam.setZoom(1.6)
         
         //KEYS
         this.pressedKeys = new Set();
         this.pressedDirectionalKeys = new Set()
+        this.releasedKeys = new Set();
 
         this.input.keyboard.on('keydown', (event) => {
             if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.add(event.code)}
@@ -101,24 +131,18 @@ class OverworldScene extends Scene {
         this.input.keyboard.on('keyup', (event) => {
             if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.delete(event.code)}
             else {this.pressedKeys.delete(event.code)};
+            this.releasedKeys.add(event.code);
         });
-
-        //
-        this.releasedKeys = new Set();
-        this.input.keyboard.on('keyup', (event) => {
-        this.releasedKeys.add(event.code);
-        });
-
-        this.physics.world.setBounds(0, 0, 9999999, 999999);
-        this.physics.world.drawDebug = false;
 
         EventBus.emit('gameReady');
 
     }
 
     update() {
-        this.player.update();
+        if (this.checkEncounter()) {this.startEncounter(); return}
         this.devil.update();
+        this.player.update();
+        
 
         if (this.pressedDirectionalKeys && !this.player.moving) {
             let lastKey  = [...this.pressedDirectionalKeys][this.pressedDirectionalKeys.size - 1];
@@ -139,27 +163,30 @@ class OverworldScene extends Scene {
 
 
         for (const key of this.pressedKeys) {
-            // console.log(`Key is being held: ${key}`);
             if (key === 'ShiftLeft') {
                     this.player.run()
                 }
         }
+
         for (const key of this.releasedKeys) {
             if (key === 'KeyC') {
                 this.devil.target = this.player
                 if (this.devil.chase === false) {this.devil.chase = true}
                 else {this.devil.chase = false}
-                console.log(this.devil.chase)
                 
             }
             if (key === 'ShiftLeft') {
-                this.player.altSpeed = 0
+                this.player.running = false
+            }
+
+            if (key === 'KeyP') {
+                console.log((this.player.hitbox.x-this.devil.hitbox.x)/TILESIZE,
+                (this.player.hitbox.y-this.devil.hitbox.y)/TILESIZE)
+
             }
         }
 
         this.releasedKeys.clear(); 
-        // console.log(`OBJ POS: ${this.player.pos}, SPRITE POS: ${this.player.sprite.x}, ${this.player.sprite.y}`);
-
     }
 }
 
