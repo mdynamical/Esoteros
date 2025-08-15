@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, Fight } from '../elements';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, Fight} from '../elements';
 
 
 class OverworldScene extends Scene {
@@ -40,6 +40,7 @@ class OverworldScene extends Scene {
 
     startEncounter() {
         this.battle = new Fight(this, this.actors)
+        this.encounter = false
 
     }
 
@@ -48,33 +49,38 @@ class OverworldScene extends Scene {
     }
 
     preload() {
+        for (let actor of this.actors) {
+            let path = `/assets/textures/${actor.name}.png`
+            this.load.image(actor.name, path)
+            // (^) Key, Path
+        }
         this.load.image('spritesheet', '/assets/textures/testspritesheet1.png');
-        this.load.image('player', '/assets/textures/elbert.png');
-        this.load.image('devil', '/assets/textures/thefella.png');
         this.load.tilemapTiledJSON('map', '/assets/maps/testmap1.json');
     }
 
     create() {
         //MAP
+        this.type = 'overworld'
+
         const map = this.make.tilemap({ key: 'map' }); // Process map Json
         const tileset = map.addTilesetImage('testspritesheet1', 'spritesheet');
         // (^Params) 1 -> spritesheet file name 2 -> spritesheet name defined in preload
         // this.physics.world.drawDebug = true;
         
-        const getO1 = map.getObjectLayer('1')
-        const objects1 = getO1.objects;
+        this.objects1 = map.getObjectLayer('1').objects;
 
-        const layer0 = map.createLayer('0', tileset, 0, 0);
-        const layer1 = map.createLayer('1', tileset, 0, 0);
-        this.layer1 = layer1;
+        map.layers.forEach((layerData, index) => { // Create layers
+            this[`layer${index}`] = map.createLayer(layerData.name, tileset, 0, 0);
+        });
 
+        this.curLayer = this.layer1
         this.physics.world.setBounds(0, 0, 9999999, 999999);
 
         //DEBUG COLLISION
         /* const graphics = this.add.graphics();
         graphics.lineStyle(2, 0xff0000, 1);
 
-        for (const row of this.layer1.layer.data) {
+        for (const row of this.curLayer.layer.data) {
             for (const tile of row) {
                 if (tile.properties.collision) {
                     graphics.strokeRect(
@@ -90,27 +96,24 @@ class OverworldScene extends Scene {
         //ACTORS
         this.player = this.actors[0];
         this.devil = this.actors[1];
-        this.player.setScene(this, 'player');
-        this.devil.setScene(this, 'devil');
 
-        this.devil.target = this.player
+        for (let actor of this.actors) {actor.setScene(this, actor.name)}
+        this.actors[1].target = this.player
 
         // LIGHT
         this.lights.enable();
         this.lights.setAmbientColor(0x111111);
-        layer1.setPipeline('Light2D');
+        this.curLayer.setPipeline('Light2D');
 
-        this.player.textures.sprite.setPipeline('Light2D');
-        this.devil.textures.sprite.setPipeline('Light2D');
+        for (let actor of this.actors) {actor.textures.sprite.setPipeline('Light2D')}
 
-        this.playerLight = this.lights.addLight(
+        this.player.lightSource = this.lights.addLight(
             this.player.textures.sprite.x,
             this.player.textures.sprite.y,
             150,         // radius
             0xffffff,    // light color
             1           // intensity
         );
-        this.player.lightSource = this.playerLight
 
         //CAM
         const cam = this.cameras.main;
@@ -140,10 +143,8 @@ class OverworldScene extends Scene {
 
     update() {
         if (this.checkEncounter()) {this.startEncounter(); return}
-        this.devil.update();
-        this.player.update();
+        for (let actor of this.actors) {actor.update()}
         
-
         if (this.pressedDirectionalKeys && !this.player.moving) {
             let lastKey  = [...this.pressedDirectionalKeys][this.pressedDirectionalKeys.size - 1];
             if (lastKey === 'KeyW') {

@@ -1,9 +1,6 @@
 import { EventBus } from '../EventBus';
-import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy} from '../elements';
-import { act } from 'react';
-import { ssrExportAllKey } from 'vite/runtime';
-
+import { Scene, Tilemaps } from 'phaser';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy, pathToTile} from '../elements';
 
 function equalArrays(a, b) {
   if (a.length !== b.length) return false;
@@ -15,17 +12,9 @@ class GridTile {
         this.scene = scene;
         this.row = row;
         this.col = col;
-
-        this.rect = scene.add.rectangle(x, y, size, size, 0x000000, 0.3)
-        .setStrokeStyle(2, 0xffffff).setOrigin(0).setInteractive();
-
-        this.rect.on('pointerover', () => {
-            this.rect.setFillStyle(0xaaaaaa, 0.4); 
-        });
-
-        this.rect.on('pointerout', () => {
-            this.rect.setFillStyle(0x000000, 0.3); 
-        });
+        this.style = scene.defaultStyles.defaultTile
+        this.rect = scene.add.rectangle(x, y, size, size, this.style.tint, this.style.alpha)
+        .setStrokeStyle(0.5, 0x000000).setOrigin(0).setInteractive();
 
         this.rect.on('pointerdown', () => {
             console.log(`Clicked tile at [${row}, ${col}]`);
@@ -50,133 +39,154 @@ class Battle extends Scene {
         this.devil = this.actors[1]
 
         this.positions = []
-        this.markedTiles = new Set()
+        this.filledTiles = new Set()
+
+        this.tiles = data.tiles
 
 
     }
 
     preload() {
         for (let actor of this.actors) {
-            let icon = actor.textures.icon
-            let file = `/assets/textures/${icon}.png`
-            console.log(file)
-            this.load.image(icon, file)
+            let path = `/assets/textures/${actor.name}`
+ 
+            this.load.image(actor.name, path)
         }
         this.load.image('background', '/assets/interior2.png');
+        this.load.image('spritesheet', '/assets/textures/testspritesheet1.png');
+
+
 
     }
 
     create() {
         this.add.image(0, 0, 'background').setOrigin(0, 0);
 
-        const gridSize = BATTLESIZE;
-        const cellSize = TILESIZE * 2;
-        const gridWidth = gridSize * cellSize;
-        const gridHeight = gridSize * cellSize;
+        this.defaultStyles = {
+            defaultTile: {tint: 0x000000, alpha:0.1},
+            defaultBorder: {tint: 0x000000, size:0.5},
+            partyTileBorder: {tint:0x00008B, size:1},
+            enemyTileBorder: {tint:0x8B0000, size:1},
+            pathTileBorder: {tint:0x8B0000, size:1},
+        }
 
-        this.startX = this.gameWidth - gridWidth - 25;
+        const gridSize = BATTLESIZE;
+        this.cellSize = TILESIZE
+
+        const gridWidth = gridSize * this.cellSize;
+        const gridHeight = gridSize * this.cellSize;
+
+        this.startX = Math.round(this.gameWidth * 1/4);
         this.startY = (this.gameHeight - gridHeight) / 2;
 
         const graphics = this.add.graphics();
         this.grid = []
 
+        const map = this.make.tilemap({ data: this.tiles, tileWidth: TILESIZE, tileHeight: TILESIZE });
+        const tileset = map.addTilesetImage('spritesheet');
+
+        this.curLayer = map.createLayer(0, tileset, this.startX, this.startY);
+        this.layer1 = this.curLayer
 
         for (let row = 0; row < gridSize; row++) {
             const rowArray = [];
             for (let col = 0; col < gridSize; col++) {
-                const x = this.startX + col * cellSize;
-                const y = this.startY + row * cellSize;
+                const x = this.startX + col * this.cellSize;
+                const y = this.startY + row * this.cellSize;
 
-                const tile = new GridTile(this, x, y, cellSize, row, col);
+                const tile = new GridTile(this, x, y, this.cellSize, row, col);
                 rowArray.push(tile);
             }
             this.grid.push(rowArray);
         }
 
-        this.getActorsPos()
-
-        
+        for (let actor of this.actors) {actor.setScene(this, actor.name, {x:this.startX, y:this.startY})}        
     }
 
     getActorsPos() {
-        let centerTile = (BATTLESIZE-1) / 2 
-        this.positions.push([centerTile, centerTile]) // The Player always starts in the middle
-        for (let i=1; i <= this.actors.length-1; i++) {
-            let enemy = this.actors[i]
 
-            let xDiff = ((enemy.hitbox.x - this.player.hitbox.x)  / TILESIZE)
-            let yDiff = ((enemy.hitbox.y- this.player.hitbox.y)  / TILESIZE)
-
-            this.positions.push([centerTile + xDiff, centerTile + yDiff]) // col row positions relative to the Player in the middle
-        }
-        this.renderPos()
     }
 
     renderPos () {
-        let gridSize = TILESIZE * 2
-        for (let i=0; i<= this.actors.length-1; i++) {
+
+        /* for (let i=0; i<= this.actors.length-1; i++) {
+            let actor = this.actors[i]
             let actorPos = this.positions[i]
-            let tile = this.grid[actorPos[1]][actorPos[0]] //[1][0] as col=x and row=y 
+            let xOffset = actor.hitboxOffsetX
+            let yOffset = actor.hitboxOffsetY
+            let originTile = this.grid[actorPos[1]-yOffset][actorPos[0]-xOffset] //[1][0] as col=x and row=y 
             
-            this.add.image(tile.rect.x, tile.rect.y, this.actors[i].textures.icon)
-            .setDisplaySize(gridSize, gridSize).setOrigin(0);
+            this.add.image(originTile.rect.x, originTile.rect.y, actor.name)
+            .setOrigin(0);
             
         }
-
+        */
     }
 
-    select(tile) {
-        let tilePos = [tile.col, tile.row]
-        let actor = null
+    select(gridTile) {
+        let tilePos = [gridTile.col, gridTile.row]
+        let selectedActor = null
 
-        for (let i = 0; i <= this.positions.length-1; i++) {
+        let tile = this.gridTileConverter(tilePos)
 
-            let pos = this.positions[i]
-            if (equalArrays(tilePos, pos)) {
-                actor = this.actors[i]
-                break
-            }
+        for (let actor of this.actors) {if (tile === actor.curTile){selectedActor=actor}}
+        
 
-        }
-        if (actor instanceof Player) {
+        if (selectedActor instanceof Player) {
             if (this.selectedParty) {
                 this.selectedParty=null
-                for (let tile of this.markedTiles) {
-                    tile.rect.setFillStyle(0x000000, 0.3)
-                }
-                this.markedTiles.clear()
+                this.clearStyles()
             }
-            else {this.selectedParty = actor}
+            else {
+                this.selectedParty = selectedActor
+                let style = this.defaultStyles.partyTileBorder
+                gridTile = this.gridTileConverter(selectedActor.curTile)
+
+                this.setStyle(gridTile, style)
+            }
         }
         
-        else if (actor instanceof Enemy && this.selectedParty) {
-            if (this.selectedEnemy) {this.selectedEnemy=null}
-            else {this.selectedEnemy = actor}
+        else if (selectedActor instanceof Enemy && this.selectedParty) {
+            this.selectedEnemy = selectedActor
         }
-        this.renderMovement()
+
     }
 
-    renderMovement() {
-        if (!this.selectedParty) {return}
-        let actorPos = this.positions[this.actors.indexOf(this.selectedParty)]
-        let charTile = this.grid[actorPos[1], actorPos[1]]
+    clearStyles() {
+        let defaultGrid = this.defaultStyles.defaultBorder
+        let defaultTile = this.defaultStyles.defaultTile
+        for (let tile of this.filledTiles) {
+            if (Array.isArray(tile)) {
+                this.grid[tile[1]][tile[0]].rect.setStrokeStyle(defaultGrid.size, defaultGrid.tint)
+            }
+            else {tile.setFillStyle(defaultTile.tint, defaultTile.alpha)}
+        }
+        this.filledTiles.clear()
+    }
 
-        let dirVector = {
-            W: {x:0, y:-1},
-            A: {x:-1, y:0},
-            S: {x:0, y:+1},
-            D: {x:1, y:0},
+    setStyle(tile, style) {
+        if (Array.isArray(tile)) {
+            this.grid[tile[1]][tile[0]].rect.setStrokeStyle(style.size, style.tint)
+
         }
-        for (let key in dirVector) {
-            let dir = dirVector[key]
-            let adjTile = this.grid[actorPos[1]+dir.x][actorPos[0]+dir.y]
-            adjTile.rect.setFillStyle(0xaaaaaa, 0.4)
-            this.markedTiles.add(adjTile)
+        else {tile.setFillStyle(style.tint, style.alpha)}
+        this.filledTiles.add(tile)
+    }
+
+    gridTileConverter(pos) {
+        if (Array.isArray(pos)) {
+            return this.curLayer.getTileAtWorldXY(this.startX+(pos[0]*TILESIZE),this.startY+(pos[1]*TILESIZE))
         }
+        else {return [pos.pixelX/TILESIZE, pos.pixelY/TILESIZE]}
+        
+    }
+
+    renderPathTiles() {
+        
     }
 
     update() {
-        
+
     }
 }
 
