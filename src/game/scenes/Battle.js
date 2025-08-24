@@ -1,6 +1,7 @@
 import { EventBus } from '../EventBus';
 import { Scene, Tilemaps } from 'phaser';
 import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy, pathToTile} from '../elements';
+import {BattleGUI} from '../ui'
 
 function equalArrays(a, b) {
   if (a.length !== b.length) return false;
@@ -12,15 +13,16 @@ class GridTile {
         this.scene = scene;
         this.row = row;
         this.col = col;
-        this.style = scene.defaultStyles.defaultTile
-        this.rect = scene.add.rectangle(x, y, size, size, this.style.tint, this.style.alpha)
+        let style = scene.defaultStyles.defaultTile
+        this.rect = scene.add.rectangle(x, y, size, size, style.tint, style.alpha)
         .setStrokeStyle(0.5, 0x000000).setOrigin(0).setInteractive();
 
         this.rect.on('pointerdown', () => {
-            console.log(`Clicked tile at [${row}, ${col}]`);
+            console.log(`Clicked tile at [${col}, ${row}]`);
             scene.select(this)
         });
 
+        scene.rects.push(this.rect)
     }
 }
 
@@ -30,7 +32,9 @@ class Battle extends Scene {
         this.gameWidth = SCREENWIDTH;
         this.gameHeight = SCREENHEIGHT;
         this.selectedParty = null;
-        this.selectedEnemy = null
+        this.selectedEnemy = null;
+        this.rects = []
+
     }
 
     init(data) {
@@ -38,11 +42,12 @@ class Battle extends Scene {
         this.player = this.actors[0]
         this.devil = this.actors[1]
 
+        this.player.running = true
+
         this.positions = []
         this.filledTiles = new Set()
 
         this.tiles = data.tiles
-
 
     }
 
@@ -52,11 +57,9 @@ class Battle extends Scene {
  
             this.load.image(actor.name, path)
         }
-        this.load.image('background', '/assets/interior2.png');
+        this.load.image('background', '/assets/images/interior2.png');
         this.load.image('spritesheet', '/assets/textures/testspritesheet1.png');
-
-
-
+        this.load.tilemapTiledJSON('map', '/assets/maps/testmap1.json');
     }
 
     create() {
@@ -83,10 +86,14 @@ class Battle extends Scene {
         this.grid = []
 
         const map = this.make.tilemap({ data: this.tiles, tileWidth: TILESIZE, tileHeight: TILESIZE });
+        const mapData = this.make.tilemap({key: 'map'});
+
         const tileset = map.addTilesetImage('spritesheet');
 
         this.curLayer = map.createLayer(0, tileset, this.startX, this.startY);
         this.layer1 = this.curLayer
+
+        this.tilePropertySetter(mapData, this.layer1)
 
         for (let row = 0; row < gridSize; row++) {
             const rowArray = [];
@@ -100,27 +107,36 @@ class Battle extends Scene {
             this.grid.push(rowArray);
         }
 
-        for (let actor of this.actors) {actor.setScene(this, actor.name, {x:this.startX, y:this.startY})}        
+        for (let actor of this.actors) {actor.setScene(this, actor.name, {x:this.startX, y:this.startY})}
+
+        //KEYS
+        this.pressedKeys = new Set();
+        this.releasedKeys = new Set();
+
+        this.input.keyboard.on('keydown', (event) => {
+            this.pressedKeys.add(event.code)
+        });
+
+        this.input.keyboard.on('keyup', (event) => {
+            this.pressedKeys.delete(event.code)
+            this.releasedKeys.add(event.code);
+        });
+
+        this.gui = new BattleGUI(this)
     }
 
-    getActorsPos() {
-
-    }
-
-    renderPos () {
-
-        /* for (let i=0; i<= this.actors.length-1; i++) {
-            let actor = this.actors[i]
-            let actorPos = this.positions[i]
-            let xOffset = actor.hitboxOffsetX
-            let yOffset = actor.hitboxOffsetY
-            let originTile = this.grid[actorPos[1]-yOffset][actorPos[0]-xOffset] //[1][0] as col=x and row=y 
-            
-            this.add.image(originTile.rect.x, originTile.rect.y, actor.name)
-            .setOrigin(0);
-            
+    tilePropertySetter(mapData, layer) {
+        const tileProperties = mapData.tilesets[0].tileProperties
+        
+        for (let y = 0; y < layer.height; y++) {
+            for (let x = 0; x < layer.width; x++) {
+                const tile = layer.getTileAt(x, y);
+                if (tile && tile.index !== undefined) {
+                    tile.properties = tileProperties[tile.index];
+                }
+            }
         }
-        */
+
     }
 
     select(gridTile) {
@@ -128,9 +144,12 @@ class Battle extends Scene {
         let selectedActor = null
 
         let tile = this.gridTileConverter(tilePos)
-
+    
         for (let actor of this.actors) {if (tile === actor.curTile){selectedActor=actor}}
-        
+
+        if (this.selectedParty && (tile !== this.selectedParty.curTile)) {
+            this.setPartyPath(tile)
+        }
 
         if (selectedActor instanceof Player) {
             if (this.selectedParty) {
@@ -145,9 +164,28 @@ class Battle extends Scene {
                 this.setStyle(gridTile, style)
             }
         }
-        
+
         else if (selectedActor instanceof Enemy && this.selectedParty) {
             this.selectedEnemy = selectedActor
+        }
+    }
+
+    setPartyPath(tile) {
+        const path = pathToTile(this, this.selectedParty.curTile, tile, {x:this.startX, y:this.startY})
+
+        if (!(tile === this.previousClickedTile)) {
+            this.clearStyles()
+            for (let tile of path) {
+                let gridTile = this.gridTileConverter(tile)
+                this.setStyle(gridTile, this.defaultStyles.pathTileBorder)
+            }
+            this.previousClickedTile = tile
+        }
+        else {
+            this.selectedParty.path = path
+            this.selectedParty = undefined
+            this.previousClickedTile = undefined
+            this.clearStyles()
         }
 
     }
@@ -181,12 +219,25 @@ class Battle extends Scene {
         
     }
 
-    renderPathTiles() {
-        
+    toggleMapActivation(active) {
+        const toggleObject = (obj, active) => {
+            obj.setVisible(active).setActive(active)
+            if (obj.input) active ? obj.setInteractive() : obj.disableInteractive()
+        }
+        for (let rect of this.rects) toggleObject(rect, active)
+        for (let actor of this.actors) toggleObject(actor.textures.sprite, active)
+        this.curLayer.setVisible(active).setActive(active)
     }
 
     update() {
+        for (let actor of this.actors) {actor.update()}
 
+        for (const key of this.releasedKeys) {
+            // console.log(key)
+            if (key === 'KeyP') {this.gui.setState("default")}
+            else if (key === 'KeyO') {this.gui.setState("tacticalMap")}
+        }
+        this.releasedKeys.clear()
     }
 }
 

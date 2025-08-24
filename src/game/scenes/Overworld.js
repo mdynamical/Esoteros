@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, Fight} from '../elements';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, startFight} from '../elements';
 
 
 class OverworldScene extends Scene {
@@ -39,9 +39,8 @@ class OverworldScene extends Scene {
     }
 
     startEncounter() {
-        this.battle = new Fight(this, this.actors)
+        startFight(this, this.actors)
         this.encounter = false
-
     }
 
     init(data) {
@@ -75,6 +74,8 @@ class OverworldScene extends Scene {
 
         this.curLayer = this.layer1
         this.physics.world.setBounds(0, 0, 9999999, 999999);
+        this.startX = 0
+        this.startY = 0
 
         //DEBUG COLLISION
         /* const graphics = this.add.graphics();

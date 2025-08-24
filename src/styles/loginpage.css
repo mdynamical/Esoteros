@@ -6,7 +6,7 @@
 
 @font-face {
     font-family: 'AncientModernTale';
-    src: url('/assets/fonts/mainfont/main.ttf') format('truetype');
+    src: url('/assets/fonts/main.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
   }

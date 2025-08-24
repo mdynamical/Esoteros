@@ -3,65 +3,6 @@ const SCREENWIDTH = 1344
 const SCREENHEIGHT = 768
 const BATTLESIZE = 21 // In tiles. Should be an odd number
 
-
-function pathToTile(scene, startTile, targetTile) {
-    // My goal here was to create an algorithm similar to A*, I decided to go with a greedy BFS search
-    if (!targetTile) {return}
-
-    const heuristic = (startTile, targetTile) => (Math.abs(targetTile.pixelX - startTile.pixelX) + Math.abs(targetTile.pixelY - startTile.pixelY)) / TILESIZE
-
-    let discoveredTiles = new Set();
-    discoveredTiles.add(startTile)
-
-    let paths = [scene.curLayer.getTileAtWorldXY(startTile.pixelX+TILESIZE, startTile.pixelY),
-                        scene.curLayer.getTileAtWorldXY(startTile.pixelX-TILESIZE, startTile.pixelY),
-                        scene.curLayer.getTileAtWorldXY(startTile.pixelX, startTile.pixelY+TILESIZE),
-                        scene.curLayer.getTileAtWorldXY(startTile.pixelX, startTile.pixelY-TILESIZE)
-                ].filter((t) => t && !t.properties.collision).map(t => new Array(t));
-    // (^) Add the initial walkable adjacent tiles to individual Sets() that are them added to the paths queue
-    
-    let correctPath = []           
-    while (paths.length > 0) {
-        //Orders the paths which are closer to the target to be searched first
-        paths.sort((pathA, pathB) => {
-        let headA = pathA[pathA.length - 1];
-        let headB = pathB[pathB.length - 1];
-        return heuristic(headA, targetTile) - heuristic(headB, targetTile);
-        });
-
-        let path = paths.shift()
-        let head = path[path.length-1]
-        //head.tint = "0x000000"
-        //head.tintFill = true      DEBUG
-        if (heuristic(head, targetTile) === 0) {correctPath = path; break} 
-        if (discoveredTiles.has(head)) {continue} else {discoveredTiles.add(head)}
-        
-        let headAdjacent = [scene.curLayer.getTileAtWorldXY(head.pixelX+TILESIZE, head.pixelY),
-                    scene.curLayer.getTileAtWorldXY(head.pixelX-TILESIZE, head.pixelY),
-                    scene.curLayer.getTileAtWorldXY(head.pixelX, head.pixelY+TILESIZE),
-                    scene.curLayer.getTileAtWorldXY(head.pixelX, head.pixelY-TILESIZE)
-                    ].filter((t) => t && !t.properties.collision)
-
-
-        for (let t of headAdjacent) {
-            if (!discoveredTiles.has(t)) {
-                let newPath = [...path, t];
-                paths.push(newPath); 
-            }
-        }
-    }
-    //if (correctPath) {
-    //     for (let tile of correctPath) {tile.tint = "0x011100"; tile.tintFill = true}
-    //} DEBUG
-    return correctPath
-}
-
-class Attributes {
-    constructor() {
-        undefined
-    }
-}
-
 class Character {
     constructor(name, tilePos, attr, layer='layer1', scene=null) {
         this.name = name; 
@@ -93,6 +34,7 @@ class Character {
         }
 
         this.lightSource = null
+        this.path = []
         this.debug = false
     }
 
@@ -102,19 +44,11 @@ class Character {
         
         if (dir === 'W' || dir === 'A') {movement = -movement}
 
-        if (dir === 'W' || dir === 'S') {tile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y + movement)}
-        
-        else if (dir === 'A' || dir === 'D') {tile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x + movement, this.hitbox.y)}
-        
-        /* DEBUG
-            if (tile.properties.collision) {
-                console.log(tile)
-                console.log(` POS[${this.sprite.x}, ${this.sprite.y}] ${dir} movement attempted,
-                at ${this.sprite.x}, ${offsetY+movement}`)
-                tile.tint = 0x000000;
-                tile.tintFill = true;
-            }
-        */    
+        if (dir === 'A' || dir === 'D')
+        {tile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x + movement, this.hitbox.y)}
+
+        else if (dir === 'W' || dir === 'S')
+        {tile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y + movement)}
 
         return tile && tile.properties.collision;
 
@@ -148,79 +82,53 @@ class Character {
 
     }
 
-    setMove(dir) {
-        if (this.moving || this.collisionCheck(dir)) return;
-        if (dir === 'W') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y-TILESIZE)}
-        if (dir === 'A') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x-TILESIZE, this.hitbox.y)}
-        if (dir === 'S') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y+TILESIZE)}
-        if (dir === 'D') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x +TILESIZE, this.hitbox.y)}
+    pathMovement() {
+        if (this.moving) {this.move(); return}
 
-        this.moving = dir;
-        this.move()
+        if (this instanceof Enemy) {
+            if (!this.chase || !this.target) {return}
+            this.path = pathToTile(this.scene, this.curTile, this.target.curTile)
+        }
+
+        this.nextTile = this.path.shift()
+        let occupiedTile = false
+        for (let actor of this.scene.actors) {if (this.nextTile===actor.curTile) {occupiedTile=true; this.path=[]}}
+        if (!this.nextTile || occupiedTile) {return}
+
+        let diffX = this.nextTile.pixelX - this.hitbox.x + this.scene.startX
+        let diffY = this.nextTile.pixelY - this.hitbox.y + this.scene.startY
+
+        if (diffY === -TILESIZE) {this.moving = 'W'}
+        else if (diffX === -TILESIZE) {this.moving = 'A'}
+        else if (diffY === TILESIZE) {this.moving = 'S'}
+        else if (diffX === TILESIZE) {this.moving = 'D'}
     }
 
     move() {
         let movement = this.speed
+
         if (!this.moving) {return}
-        if (this.running) {movement *= 1.5}
+        if (this.running) {movement *= 1.6}
 
-        if (this.moving === 'W') {
-            this.hitbox.y -= movement
-            if (this.hitbox.y <= this.nextTile.pixelY) {
-                this.moving = false;
-                this.hitbox.y = this.nextTile.pixelY
-                this.curTile = this.nextTile
-                if (this.path) {
-                    if (this.path.length > 0) {
-                        this.nextTile = this.path.shift()
-                    }
-                }
-
-            }
-        
-        }
-        else if (this.moving === 'A') {
-            this.hitbox.x -= movement
-            if (this.hitbox.x <= this.nextTile.pixelX) {
-                this.moving = false;
-                this.hitbox.x = this.nextTile.pixelX
-                this.curTile = this.nextTile
-                if (this.path) {
-                    if (this.path.length > 0) {
-                        this.nextTile = this.path.shift()
-                    }
-                }
-
-            }
+        const stopMovement = () => {
+            this.hitbox.y = this.nextTile.pixelY + this.scene.startY;
+            this.hitbox.x = this.nextTile.pixelX + this.scene.startX;
+            this.moving = false;
+            this.curTile = this.nextTile;
         }
 
-        else if (this.moving === 'S') {
-            this.hitbox.y += movement
-            if (this.hitbox.y >= this.nextTile.pixelY) {
-                this.moving = false;
-                this.hitbox.y = this.nextTile.pixelY
-                this.curTile = this.nextTile
-                if (this.path) {
-                    if (this.path.length > 0) {
-                        this.nextTile = this.path.shift()
-                    }
-                }
-
-            }
+        const movementHandler = {
+            'W': {x:0, y:-1, expr:() => this.hitbox.y <= this.nextTile.pixelY+this.scene.startY},
+            'A': {x:-1, y:0, expr:() => this.hitbox.x<= this.nextTile.pixelX+this.scene.startX },
+            'S': {x:0, y:1, expr:() => this.hitbox.y >= this.nextTile.pixelY+this.scene.startY},
+            'D': {x:1, y:0, expr:() => this.hitbox.x >= this.nextTile.pixelX+this.scene.startX},
         }
+        const dir = movementHandler[this.moving]
 
-        else if (this.moving === 'D') {
-            this.hitbox.x += movement
-            if (this.hitbox.x >= this.nextTile.pixelX ) {
-                this.moving = false;
-                this.hitbox.x = this.nextTile.pixelX
-                this.curTile = this.nextTile
-                if (this.path) {
-                    if (this.path.length > 0) {
-                        this.nextTile = this.path.shift()
-                    }
-                }
-            }
+        if (dir) {
+            this.hitbox.x += dir.x * movement
+            this.hitbox.y += dir.y * movement
+            if (dir.expr()) {stopMovement()}
         }
     }
 
@@ -247,7 +155,7 @@ class Character {
         this.updateLight()
     }
 
-    saveOverWorldPos () {
+    saveOverWorldPos() {
         this.overWorldPos = [this.hitbox.x, this.hitbox.y]
     }
 }
@@ -262,6 +170,17 @@ class Player extends Character {
 
     }
 
+    setMove(dir) {
+    if (this.moving || this.collisionCheck(dir)) return;
+    if (dir === 'W') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y-TILESIZE)}
+    if (dir === 'A') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x-TILESIZE, this.hitbox.y)}
+    if (dir === 'S') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y+TILESIZE)}
+    if (dir === 'D') {this.nextTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x +TILESIZE, this.hitbox.y)}
+
+    this.moving = dir;
+    this.move()
+    }
+
     run() {
         if (this.runStamina <= 0) {this.running = false; return}
         if  (!this.running) {this.running = true}
@@ -273,7 +192,8 @@ class Player extends Character {
     }
 
     update() {
-        this.move();
+        if (this.path.length === 0 ){this.move()}
+        else this.pathMovement()
         this.recover();
         this.updatePos();
 
@@ -291,64 +211,99 @@ class Enemy extends Character {
         this.speed = 5.5
     }
 
-    setMove() {
-        if (this.moving) {this.move(); return}
-        if (!this.chase || !this.target) {return}
-
-        this.path = pathToTile(this.scene, this.curTile, this.target.curTile)
-
-        this.nextTile = this.path.shift()
-        if (!this.nextTile) {return}
-
-        let diffX = this.nextTile.pixelX - this.hitbox.x
-        let diffY = this.nextTile.pixelY - this.hitbox.y
-        if (diffY === -TILESIZE) {this.moving = 'W'}
-        else if (diffX === -TILESIZE) {this.moving = 'A'}
-        else if (diffY === TILESIZE) {this.moving = 'S'}
-        else if (diffX === TILESIZE) {this.moving = 'D'}
-    }
-
     update() {
-        this.setMove()
+        this.pathMovement()
         this.updatePos()
     }
 }
 
-class Fight {
-    constructor(scene, actors) {
-        let player = actors[0]
-        let midX = player.curTile.pixelX
-        let midY = player.curTile.pixelY
-        let gridStart = (BATTLESIZE-1)/2 
-        let firstGid = scene.curLayer.tilemap.tilesets[0].firstgid;
-        // (^) Used to fix unalignements between tilled tile indexes and phaser's makeTilledMap expected indexes
-
-        let indexGrid = []
-        let adjTiles = scene.curLayer.getTilesWithinWorldXY(midX-(TILESIZE*gridStart), midY-(TILESIZE*gridStart),
-        TILESIZE * BATTLESIZE , TILESIZE * BATTLESIZE)
-
-        for (let r = 0; r < BATTLESIZE; r++) {
-            let row = adjTiles.slice(BATTLESIZE * r , BATTLESIZE*(r+1)).map(tile => tile.index - firstGid);
-            indexGrid.push(row);
-        }
-
-        player.saveOverWorldPos()
-        player.tilePos = {x: gridStart,
-        y: gridStart - player.hitboxOffsetY} // gridStart is also the midTile of the grid
-
-        for (let actor of actors.slice(1)) {
-            actor.saveOverWorldPos()
-
-            actor.tilePos = {x: gridStart + ((actor.curTile.pixelX - player.curTile.pixelX) / TILESIZE), y:
-            gridStart-actor.hitboxOffsetY + ((actor.curTile.pixelY -  player.curTile.pixelY) / TILESIZE)}
-
-            // (^) Sets up the actor position in tiles relative to the player
-        }
-
-        scene.scene.start('BattleScene', { actors: actors, tiles: indexGrid }); // Pass actors data
-
+class Attributes {
+    constructor() {
+        //TODO
     }
 }
 
+function pathToTile(scene, startTile, targetTile, layerOrigin={x:0, y:0}) {
+    // My goal here was to create an algorithm similar to A*, I decided to go with a greedy BFS search
+    if (!targetTile) {return}
 
-export { Player, Enemy, Fight, TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE, pathToTile};
+    const heuristic = (startTile, targetTile) => (Math.abs(targetTile.pixelX - startTile.pixelX) + Math.abs(targetTile.pixelY - startTile.pixelY)) / TILESIZE
+
+    let discoveredTiles = new Set();
+    discoveredTiles.add(startTile)
+
+    let paths = [scene.curLayer.getTileAtWorldXY(startTile.pixelX+TILESIZE+layerOrigin.x, startTile.pixelY+layerOrigin.y),
+                        scene.curLayer.getTileAtWorldXY(startTile.pixelX-TILESIZE+layerOrigin.x, startTile.pixelY+layerOrigin.y),
+                        scene.curLayer.getTileAtWorldXY(startTile.pixelX+layerOrigin.x, startTile.pixelY+TILESIZE+layerOrigin.y),
+                        scene.curLayer.getTileAtWorldXY(startTile.pixelX+layerOrigin.x, startTile.pixelY-TILESIZE+layerOrigin.y)
+                ].filter((t) => t && !t.properties.collision).map(t => [t]);
+    // (^) Add the initial walkable adjacent tiles to individual Sets() that are them added to the paths queue
+    
+    let correctPath = []
+    while (paths.length > 0) {
+        //Orders the paths which are closer to the target to be searched first
+        paths.sort((pathA, pathB) => {
+        let headA = pathA[pathA.length - 1];
+        let headB = pathB[pathB.length - 1];
+        return heuristic(headA, targetTile) - heuristic(headB, targetTile);
+        });
+
+        let path = paths.shift()
+        let head = path[path.length-1]
+        //head.tint = "0x000000"
+        //head.tintFill = true      DEBUG
+        if (heuristic(head, targetTile) === 0) {correctPath = path; break} 
+        if (discoveredTiles.has(head)) {continue} else {discoveredTiles.add(head)}
+        
+        let headAdjacent = [scene.curLayer.getTileAtWorldXY(head.pixelX+TILESIZE+layerOrigin.x, head.pixelY+layerOrigin.y),
+                    scene.curLayer.getTileAtWorldXY(head.pixelX-TILESIZE+layerOrigin.x, head.pixelY+layerOrigin.y),
+                    scene.curLayer.getTileAtWorldXY(head.pixelX+layerOrigin.x, head.pixelY+TILESIZE+layerOrigin.y),
+                    scene.curLayer.getTileAtWorldXY(head.pixelX+layerOrigin.x, head.pixelY-TILESIZE+layerOrigin.y)
+                    ].filter((t) => t && !t.properties.collision)
+
+        for (let t of headAdjacent) {
+            if (!discoveredTiles.has(t)) {
+                let newPath = [...path, t];
+                paths.push(newPath); 
+            }
+        }
+    }
+    //if (correctPath) {
+    //     for (let tile of correctPath) {tile.tint = "0x011100"; tile.tintFill = true}
+    //} DEBUG
+    return correctPath
+}
+
+function startFight(scene, actors) {
+    let player = actors[0]
+    let midX = player.curTile.pixelX
+    let midY = player.curTile.pixelY
+    let gridStart = (BATTLESIZE-1)/2 
+    let firstGid = scene.curLayer.tilemap.tilesets[0].firstgid;
+    // (^) Used to fix unalignements between tilled tile indexes and phaser's makeTilledMap expected indexes
+
+    let indexGrid = []
+    let adjTiles = scene.curLayer.getTilesWithinWorldXY(midX-(TILESIZE*gridStart), midY-(TILESIZE*gridStart),
+    TILESIZE * BATTLESIZE , TILESIZE * BATTLESIZE)
+
+    for (let r = 0; r < BATTLESIZE; r++) {
+        let row = adjTiles.slice(BATTLESIZE * r , BATTLESIZE*(r+1)).map(tile => tile.index - firstGid);
+        indexGrid.push(row);
+    }
+
+    player.saveOverWorldPos()
+    player.tilePos = {x: gridStart, y: gridStart - player.hitboxOffsetY} // gridStart is also the midTile of the grid
+
+    for (let actor of actors.slice(1)) {
+        actor.saveOverWorldPos()
+
+        actor.tilePos = {x: gridStart + ((actor.curTile.pixelX - player.curTile.pixelX) / TILESIZE), y:
+        gridStart-actor.hitboxOffsetY + ((actor.curTile.pixelY -  player.curTile.pixelY) / TILESIZE)}
+        // (^) Sets up the actor position in tiles relative to the player
+    }
+
+    scene.scene.start('BattleScene', { actors: actors, tiles: indexGrid }); // Pass actors data
+
+}
+
+export { Player, Enemy, startFight, TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE, pathToTile};

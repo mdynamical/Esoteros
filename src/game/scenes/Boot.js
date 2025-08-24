@@ -1,2 +1,0 @@
-import { Scene } from 'phaser';
-
