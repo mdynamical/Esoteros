@@ -13,17 +13,14 @@ class Character {
         this.scene = scene;
         this.textures = {sprite: '', portrait: ''}
 
-        if (this.scene != null) {
-            this.setScene(this.scene, this.name);
-        }
-
         this.moving = false
         this.speed = 2 
         this.nextTile = null
         this.curTile = null
+
         /* The offsets are applied from the Top(Y=0) left(X=0) position of the sprite and move the hitbox
         +1 tile for each bottom(+Y) right(+X) increment. Custom hitboxes are necessary because Phaser's
-        sprite.body object is completely broken and should be avoided if you want a functional collision system */ 
+        sprite.body object is unpredictable and it's better to avoid it if you want a functional collision system */ 
         this.hitboxOffsetX = 0 
         this.hitboxOffsetY = 1
         this.hitbox = {
@@ -36,6 +33,10 @@ class Character {
         this.lightSource = null
         this.path = []
         this.debug = false
+
+        if (this.scene != null) {
+            this.setScene(this.scene, this.name);
+        }
     }
 
     collisionCheck(dir) {
@@ -70,7 +71,8 @@ class Character {
         this.hitbox.x = this.textures.sprite.x + xOffset
         this.hitbox.y = this.textures.sprite.y + yOffset
         this.curTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y)
-
+        
+        if (this instanceof Enemy && (!this.body)) {this.body = new Body(this)}
         /* let hitbox = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y)
         let sprite = this.scene[this.layer].getTileAtWorldXY(this.tilePos.x * TILESIZE + renderOffset.x,
         this.tilePos.y * TILESIZE+renderOffset.y)
@@ -141,14 +143,14 @@ class Character {
     }
     
     resetMovement() {
-        // Used when encounters happen to prevent odd coordinates on the XY axis
+        // Used when encounters happen to prevent unprecise coordinates on the XY axis
         this.moving = null
         this.hitbox.x = this.curTile.pixelX
         this.hitbox.y = this.curTile.pixelY
 
     }
 
-    updatePos() {
+    updateRenderPosition() {
         this.textures.sprite.x = this.hitbox.x - (TILESIZE * this.hitboxOffsetX)
         this.textures.sprite.y = this.hitbox.y - (TILESIZE * this.hitboxOffsetY)
         
@@ -158,6 +160,7 @@ class Character {
     saveOverWorldPos() {
         this.overWorldPos = [this.hitbox.x, this.hitbox.y]
     }
+
 }
 
 class Player extends Character {
@@ -195,7 +198,7 @@ class Player extends Character {
         if (this.path.length === 0 ){this.move()}
         else this.pathMovement()
         this.recover();
-        this.updatePos();
+        this.updateRenderPosition();
 
     }
 
@@ -208,14 +211,167 @@ class Enemy extends Character {
         this.tilePos = tilePos
         this.chase = false;
         this.target = null;
+        this.body = null
         this.speed = 5.5
     }
 
     update() {
         this.pathMovement()
-        this.updatePos()
+        this.updateRenderPosition()
     }
 }
+
+class State {
+    constructor() {
+
+    }
+
+}
+
+class BodyPart {
+    constructor(name, sprite, rect, adjacentParts=[], attr={}, skills=[], isVital=false) {
+        this.name = name
+        this.sprite = sprite
+        this.rect = rect
+        this.adjacentParts = adjacentParts
+        this.attr = attr
+        this.skills = skills
+        this.isVital = isVital
+        this.equipment = null
+    }
+
+    getAttributes() {
+        return this.attr
+    }
+    
+}
+
+class Body {
+    constructor(character) {
+        this.character = character
+        this.parts = {}
+        this.rects = []
+        const path = `public/assets/bodies/${character.name}.json`
+
+        this.loadBodyParts(path)
+    }
+
+    async loadBodyParts(source) {
+        let data = null
+        let torso = null
+        let bodyParts = []
+        const bodyPartElements = ["RECTANGLE", "ELLIPSE"]
+
+        try {
+            const res = await fetch(source);
+            if (!res.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            data = await res.json();
+            
+        } 
+        catch (error) {
+            console.error('Error fetching file:', error);
+            return
+        }
+        
+        for (let element of data) {
+            if (bodyPartElements.includes(element.type)) {
+                if (element.name === "torso") {torso = element}
+                if (element.name === "sprite") {continue}
+                bodyParts.push(element)
+            }
+        }
+
+        if (!torso) {console.log("Torso not found!"); return}
+
+        for (let data of bodyParts) {
+            const rect = {
+                type: data.type,
+                x: data.x - torso.x,
+                y: data.y - torso.y,
+                height: data.height,
+                width: data.width
+            }
+            //X and Y are the relative position of the part compared to the torso
+            const part = new BodyPart(data.name, null, rect)
+            this.parts[part.name] = part
+        }
+
+        console.log(this.parts)
+    }
+
+    activateBody(x, y) {
+        if (!this.character.scene) {console.warn(`No scene for ${this.char.name}`); return}
+        let rects = []
+
+        const torso = this.parts['torso'].rect
+        const torsoX = x-(torso.width/2)
+        const torsoY = y-(torso.height/2)
+        const torsoRect = this.character.scene.add.rectangle(torsoX, torsoY, torso.width, torso.height, 0xF9F6EE).setOrigin(0, 0)
+        rects.push(torsoRect)
+
+        for (let key in this.parts) {
+            if (this.parts[key].name === "torso") {continue}
+
+            const part = this.parts[key].rect
+            let element = null
+
+            if (part.type == "RECTANGLE") {
+                element = this.character.scene.add.rectangle(torsoX+part.x, torsoY+part.y,
+                part.width, part.height, 0xF9F6EE).setOrigin(0,0)
+                
+                if (part.rotation) {element.rotation = part.rotation}
+            }
+            else if (part.type==="ELLIPSE") {
+                element = this.character.scene.add.circle(torsoX+part.x, torsoY+ part.y,
+                part.height/2, 0xF9F6EE).setOrigin(0, 0)
+            }
+            if (element) {rects.push(element)}
+        }
+
+        this.screenRects = rects
+    }
+    
+    loadPartsDefaultAttributes() {
+
+    }
+
+    setPartAttributes(partName, attr) {
+
+    }
+
+    disablePart(partName) {
+
+    }
+        
+    checkActiveParts() {
+        const search = () => {
+
+        }
+
+        for (let key in this.parts) {}
+    }
+    
+    checkIfAlive() {
+        let alive = false
+        for (let key in this.parts) {if (this.parts[key].isVital) {alive = true; break}}
+        return alive
+    }
+
+    checkCollision(input) {
+
+    }
+
+}
+
+class Battle {
+    constructor() {
+
+    }
+}
+
 
 class Attributes {
     constructor() {
@@ -302,8 +458,8 @@ function startFight(scene, actors) {
         // (^) Sets up the actor position in tiles relative to the player
     }
 
-    scene.scene.start('BattleScene', { actors: actors, tiles: indexGrid }); // Pass actors data
+    scene.scene.start('BattleScene', { actors: actors, tiles: indexGrid });
 
 }
 
-export { Player, Enemy, startFight, TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE, pathToTile};
+export { Player, Enemy, startFight, TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE, pathToTile, Body};

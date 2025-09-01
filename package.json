@@ -27,6 +27,8 @@
         "build-nolog": "vite build --config vite/config.prod.mjs"
     },
     "dependencies": {
+        "dotenv": "^17.2.1",
+        "node-fetch": "^3.3.2",
         "phaser": "^3.88.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",

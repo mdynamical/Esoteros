@@ -3,19 +3,15 @@ import { Scene, Tilemaps } from 'phaser';
 import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy, pathToTile} from '../elements';
 import {BattleGUI} from '../ui'
 
-function equalArrays(a, b) {
-  if (a.length !== b.length) return false;
-  return a.every((val, index) => val === b[index]);
-}
-
 class GridTile {
     constructor(scene, x, y, size, row, col) {
         this.scene = scene;
         this.row = row;
         this.col = col;
-        let style = scene.defaultStyles.defaultTile
+        const style = scene.defaultStyles.defaultTile
+        const borderStyle = scene.defaultStyles.defaultBorder
         this.rect = scene.add.rectangle(x, y, size, size, style.tint, style.alpha)
-        .setStrokeStyle(0.5, 0x000000).setOrigin(0).setInteractive();
+        .setStrokeStyle(borderStyle.size,borderStyle.tint).setOrigin(0).setInteractive();
 
         this.rect.on('pointerdown', () => {
             console.log(`Clicked tile at [${col}, ${row}]`);
@@ -63,7 +59,7 @@ class Battle extends Scene {
     }
 
     create() {
-        this.add.image(0, 0, 'background').setOrigin(0, 0);
+        this.add.image(0, 0, 'background').setOrigin(0.5, 0.5);
 
         this.defaultStyles = {
             defaultTile: {tint: 0x000000, alpha:0.1},

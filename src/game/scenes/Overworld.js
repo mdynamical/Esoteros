@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, startFight} from '../elements';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, startFight, Body} from '../elements';
 
 
 class OverworldScene extends Scene {
@@ -60,7 +60,6 @@ class OverworldScene extends Scene {
     create() {
         //MAP
         this.type = 'overworld'
-
         const map = this.make.tilemap({ key: 'map' }); // Process map Json
         const tileset = map.addTilesetImage('testspritesheet1', 'spritesheet');
         // (^Params) 1 -> spritesheet file name 2 -> spritesheet name defined in preload
