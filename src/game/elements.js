@@ -251,7 +251,7 @@ class Body {
         this.character = character
         this.parts = {}
         this.sprites = []
-        const path = `public/assets/bodies/${character.name}.json`
+        const path = `/assets/bodies/${character.name}.json`
 
         this.loadBodyParts(path)
     }
