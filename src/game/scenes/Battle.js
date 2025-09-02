@@ -49,9 +49,14 @@ class Battle extends Scene {
 
     preload() {
         for (let actor of this.actors) {
-            let path = `/assets/textures/${actor.name}`
- 
+            let path = `/assets/textures/${actor.name}/${actor.name}`
             this.load.image(actor.name, path)
+
+            if (actor instanceof Enemy) {
+                for (let part in actor.body.parts) {
+                    this.load.image(`${actor.name}_${part}`, `/assets/textures/${actor.name}/body/${part}.png`)
+                }
+            }
         }
         this.load.image('background', '/assets/images/interior2.png');
         this.load.image('spritesheet', '/assets/textures/testspritesheet1.png');
@@ -59,7 +64,7 @@ class Battle extends Scene {
     }
 
     create() {
-        this.add.image(0, 0, 'background').setOrigin(0.5, 0.5);
+        this.add.image(0, 0, 'background').setOrigin(0, 0);
 
         this.defaultStyles = {
             defaultTile: {tint: 0x000000, alpha:0.1},
@@ -230,7 +235,7 @@ class Battle extends Scene {
 
         for (const key of this.releasedKeys) {
             // console.log(key)
-            if (key === 'KeyP') {this.gui.setState("default")}
+            if (key === 'KeyP') {this.gui.setState("fightMode")}
             else if (key === 'KeyO') {this.gui.setState("tacticalMap")}
         }
         this.releasedKeys.clear()

@@ -66,6 +66,7 @@ class GUIComponent {
     }
 
     onStateChange(state, callback) {
+        // Sets a fuction to be executed when the state becomes active
         if (this.states[state]) {this.states[state].onChange = callback}
         else {console.log(`state ${state} not found!`)}
         return this
@@ -76,44 +77,59 @@ class GUIComponent {
 class BattleGUI extends GUIComponent {
     constructor(scene) {
         super(scene)
-        let layer = this.scene.curLayer
-        const style = this.scene.defaultStyles.defaultTile
-        const borderStyle = this.scene.defaultStyles.defaultBorder
+        this.layer = this.scene.curLayer
+        this.style = this.scene.defaultStyles.defaultTile
+        this.borderStyle = this.scene.defaultStyles.defaultBorder
 
-        //tacticalMap
-        this.addContainer(0, 0, layer.x - 32, scene.gameHeight, "leftCorner", "tacticalMap", true)
-        this.addContainer(layer.x + layer.width + 32, 0, SCREENWIDTH, scene.gameHeight, "rightCorner", "tacticalMap")
-
-        const tacticalMapCallback = () => this.scene.toggleMapActivation(true)
-        this.onStateChange("tacticalMap", tacticalMapCallback)
-
-        const leftCorner = this.states["tacticalMap"]["containers"]["leftCorner"]
-        const testRect = this.scene.add.rectangle(leftCorner.width/2, leftCorner.height/2, 200,200, style.tint, style.alpha)
-        .setStrokeStyle(borderStyle.size, borderStyle.tint).setInteractive().on('pointerdown', () => this.setState("fightMode"))
-        leftCorner.add(testRect)
-        // (^)StartX and Y of rect should be the desired position inside the container. For a 500x500 container a 250x250 position
-        // Would be at the middle of the container, the following 2 parameters are the width and height of the rect
-        
-        //fightMode   
-        const fightModeCallback = () => {
-            this.scene.toggleMapActivation(false)
-            if (!this.scene.actors[1].body.screenRects) {
-                this.scene.actors[1].body.activateBody(SCREENWIDTH/2, SCREENHEIGHT/2)
-                console.log("active")
-            }
-        }
-
-        this.onStateChange("fightMode", fightModeCallback)
+        this.tacticalMap()
+        this.fightMode()
 
     }
 
     tacticalMap () {
+        //tacticalMap State
+        this.addContainer(0, 0, this.layer.x - 32, this.scene.gameHeight, "leftCorner", "tacticalMap", true)
+        this.addContainer(this.layer.x + this.layer.width + 32, 0, SCREENWIDTH, this.scene.gameHeight, "rightCorner", "tacticalMap")
 
+        // StartX and Y of add.rectangle() should be the desired position inside the container. For a 500x500 container a 250x250 position
+        // Would be at the middle of the container, the following 2 parameters are the width and height of the rect
+        const leftCorner = this.states["tacticalMap"]["containers"]["leftCorner"]
+        const testRect = this.scene.add.rectangle(leftCorner.width/2, leftCorner.height/2, 200,200, this.style.tint, this.style.alpha)
+        .setStrokeStyle(this.borderStyle.size, this.borderStyle.tint).setInteractive().on('pointerdown', () => this.setState("fightMode"))
+        leftCorner.add(testRect)
+
+        this.onStateChange("tacticalMap", () => {
+            this.scene.toggleMapActivation(true)
+            for (let part of Object.values(this.scene.actors[1].body.parts)) {
+                // if (part.hitbox) {part.hitbox.setActive(false).disableInteractive().setVisible(false)}
+                part.sprite.setActive(false).setVisible(false)
+            }
+        })
     }
 
     fightMode() {
-        
+        //fightMode State
+
+        this.onStateChange("fightMode", () => {
+            this.scene.toggleMapActivation(false)
+            let actor = this.scene.actors[1]
+
+            // checks if any part have an active hitbox, if not, initialize the hitboxes for the body
+            if (!(Object.values(actor.body.parts).map(obj => obj.hitbox).find(x => Boolean(x)===true))) {
+                actor.body.activateBody(SCREENWIDTH/2, SCREENHEIGHT/2)
+                console.log("body activated")
+            } 
+            else {
+                for (let part of Object.values(actor.body.parts)) {
+                    // if (part.hitbox) {part.hitbox.setActive(true).setInteractive().setVisible(true)}
+                    part.sprite.setActive(true).setVisible(true)
+                }
+            }
+        })
+
     }
+
+
 
 }
 

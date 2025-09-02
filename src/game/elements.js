@@ -72,7 +72,6 @@ class Character {
         this.hitbox.y = this.textures.sprite.y + yOffset
         this.curTile = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y)
         
-        if (this instanceof Enemy && (!this.body)) {this.body = new Body(this)}
         /* let hitbox = this.scene[this.layer].getTileAtWorldXY(this.hitbox.x, this.hitbox.y)
         let sprite = this.scene[this.layer].getTileAtWorldXY(this.tilePos.x * TILESIZE + renderOffset.x,
         this.tilePos.y * TILESIZE+renderOffset.y)
@@ -211,8 +210,8 @@ class Enemy extends Character {
         this.tilePos = tilePos
         this.chase = false;
         this.target = null;
-        this.body = null
         this.speed = 5.5
+        this.body = new Body(this)
     }
 
     update() {
@@ -238,6 +237,7 @@ class BodyPart {
         this.skills = skills
         this.isVital = isVital
         this.equipment = null
+        this.hitbox=null
     }
 
     getAttributes() {
@@ -250,7 +250,7 @@ class Body {
     constructor(character) {
         this.character = character
         this.parts = {}
-        this.rects = []
+        this.sprites = []
         const path = `public/assets/bodies/${character.name}.json`
 
         this.loadBodyParts(path)
@@ -299,18 +299,22 @@ class Body {
             this.parts[part.name] = part
         }
 
-        console.log(this.parts)
     }
 
     activateBody(x, y) {
         if (!this.character.scene) {console.warn(`No scene for ${this.char.name}`); return}
         let rects = []
 
-        const torso = this.parts['torso'].rect
-        const torsoX = x-(torso.width/2)
-        const torsoY = y-(torso.height/2)
-        const torsoRect = this.character.scene.add.rectangle(torsoX, torsoY, torso.width, torso.height, 0xF9F6EE).setOrigin(0, 0)
-        rects.push(torsoRect)
+        const torso = this.parts['torso']
+        const torsoX = x-(torso.rect.width/2)
+        const torsoY = y-(torso.rect.height/2)
+        const torsoRect = this.character.scene.add.rectangle(torsoX, torsoY, torso.rect.width, torso.rect.height,
+        0xF9F6EE).setOrigin(0, 0).setVisible(false)
+
+        const torsoSprite = this.character.scene.add.image(torsoX, torsoY,
+            `${this.character.name}_torso`).setOrigin(0, 0)
+        torso.hitbox = torsoRect
+        torso.sprite = torsoSprite
 
         for (let key in this.parts) {
             if (this.parts[key].name === "torso") {continue}
@@ -320,18 +324,23 @@ class Body {
 
             if (part.type == "RECTANGLE") {
                 element = this.character.scene.add.rectangle(torsoX+part.x, torsoY+part.y,
-                part.width, part.height, 0xF9F6EE).setOrigin(0,0)
+                part.width, part.height, 0xF9F6EE).setOrigin(0,0).setVisible(false)
                 
                 if (part.rotation) {element.rotation = part.rotation}
             }
             else if (part.type==="ELLIPSE") {
                 element = this.character.scene.add.circle(torsoX+part.x, torsoY+ part.y,
-                part.height/2, 0xF9F6EE).setOrigin(0, 0)
+                part.height/2, 0xF9F6EE).setOrigin(0, 0).setVisible(false)
             }
-            if (element) {rects.push(element)}
+
+            let sprite = this.character.scene.add.image(torsoX+part.x, torsoY+part.y,
+            `${this.character.name}_${this.parts[key].name}`).setOrigin(0, 0)
+
+            this.parts[key].sprite = sprite
+
+            if (element) {this.parts[key].hitbox = element}
         }
 
-        this.screenRects = rects
     }
     
     loadPartsDefaultAttributes() {

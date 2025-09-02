@@ -49,7 +49,7 @@ class OverworldScene extends Scene {
 
     preload() {
         for (let actor of this.actors) {
-            let path = `/assets/textures/${actor.name}.png`
+            let path = `/assets/textures/${actor.name}/${actor.name}.png`
             this.load.image(actor.name, path)
             // (^) Key, Path
         }
