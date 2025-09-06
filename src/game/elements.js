@@ -381,10 +381,137 @@ class Battle {
     }
 }
 
-
 class Attributes {
     constructor() {
         //TODO
+    }
+}
+
+/** 
+ * @param {Phaser.Scene} scene - Phaser Scene
+ * @param {Object} events - An event and it's callback - {eventName: () => {}}
+ * @param {Object} keys - Phaser Key codes
+ * @example
+ *  {
+ *      keyName: {
+ *          onPress: {eventName: events.eventName, args:[...]},
+ *          onRelease: {eventName: events.eventName, args:[...]},
+ *      }
+ *  }
+*/
+class Keyhandler {
+    constructor(scene, events, keys) {
+        this.scene = scene
+        this.events = events
+        this.keys = keys
+
+        this.pressedKeys = new Set();
+        this.releasedKeys = new Set();
+    
+        this.onKeyDown = (event) => {
+        this.pressedKeys.add(event.code);
+        };
+
+        this.onKeyUp = (event) => {
+        this.pressedKeys.delete(event.code);
+        this.releasedKeys.add(event.code);
+        };
+
+        this.scene.input.keyboard.on('keydown', this.onKeyDown);
+        this.scene.input.keyboard.on('keyup', this.onKeyUp);
+
+    }
+
+    update() {
+        this.onPressEvents()
+        this.onReleaseEvents()
+        this.releasedKeys.clear(); 
+    }
+
+    onPressEvents() {
+        for (let key of this.pressedKeys) {
+            if (this.keys[key] && this.keys[key].onPress) {
+                const keyEvent = this.keys[key].onPress
+                this.events[keyEvent.eventName](...(keyEvent.args || []))}
+        }
+    }
+
+    onReleaseEvents() {
+        for (let key of this.releasedKeys) {
+            if (this.keys[key] && this.keys[key].onRelease) {
+                const keyEvent = this.keys[key].onRelease
+                this.events[keyEvent.eventName](...(keyEvent.args || []))}
+        }
+    }
+
+    destroy() {
+        this.scene.input.keyboard.off('keydown', this.onKeyDown);
+        this.scene.input.keyboard.off('keyup', this.onKeyUp);
+    }
+}
+
+class OverworldKeyset extends Keyhandler {
+    constructor(scene) {
+        const events = {
+            "enemyChase": () => {
+                scene.devil.target = scene.player
+                if (scene.devil.chase === false) {scene.devil.chase = true}
+                else {scene.devil.chase = false}
+            },
+
+            "toggleRun": (active) => scene.player.running = active,
+
+            "setMove" : (dir) => scene.player.setMove(dir),
+
+            "debugDist": () => {
+                console.log((scene.player.hitbox.x-scene.devil.hitbox.x)/TILESIZE,(scene.player.hitbox.y-scene.devil.hitbox.y)/TILESIZE)
+            },
+        }
+
+        const keys = {
+            "KeyW": {onPress: {eventName: "setMove", args: ["W"]}},
+            "KeyA": {onPress: {eventName: "setMove", args: ["A"]}},
+            "KeyS": {onPress: {eventName: "setMove", args: ["S"]}},
+            "KeyD": {onPress: {eventName: "setMove", args: ["D"]}},
+            "ShiftLeft": {
+                onPress: {eventName: "toggleRun", args: [true]},
+                onRelease: {eventName: "toggleRun", args: [false]}
+            },
+            "KeyP": {onRelease: {eventName: "debugDist"}},
+            "KeyC": {onRelease: {eventName: "enemyChase"}},
+        }
+
+        super(scene, events, keys)
+    }
+
+    onPressEvents() {
+        const directions = ["KeyW", "KeyA", "KeyS", "KeyD"]
+        const directionalKeys = new Set([...this.pressedKeys].filter(key => directions.includes(key)))
+        const lastDirectionalKey = [...directionalKeys][directionalKeys.size-1]
+
+        for (let key of this.pressedKeys) {
+            //Only consider the last pressed directional key for a more fluid movement
+            if (directions.includes(key) && key !== lastDirectionalKey) {continue} 
+
+            if (this.keys[key] && this.keys[key].onPress) {
+                const keyEvent = this.keys[key].onPress
+                this.events[keyEvent.eventName](...(keyEvent.args || []))
+            }
+        }
+    }
+}
+
+class BattleKeyset extends Keyhandler {
+    constructor(scene) {
+        const events = {
+            setGUIState: (state) => scene.gui.setState(state)
+
+        }
+        const keys = {
+            "KeyP": {onRelease: {eventName: "setGUIState", args: ["fightMode"]}},
+            "KeyO": {onRelease: {eventName: "setGUIState", args: ["tacticalMap"]}},
+        }
+        super(scene, events, keys)
     }
 }
 
@@ -471,4 +598,7 @@ function startFight(scene, actors) {
 
 }
 
-export { Player, Enemy, startFight, TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE, pathToTile, Body};
+export { Player, Enemy, Body, OverworldKeyset, BattleKeyset,
+        TILESIZE, SCREENWIDTH, SCREENHEIGHT, BATTLESIZE,
+        pathToTile, startFight
+}

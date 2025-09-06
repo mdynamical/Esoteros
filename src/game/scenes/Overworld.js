@@ -1,6 +1,6 @@
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE, startFight, Body} from '../elements';
+import {SCREENWIDTH, SCREENHEIGHT, startFight, OverworldKeyset} from '../elements';
 
 
 class OverworldScene extends Scene {
@@ -118,24 +118,11 @@ class OverworldScene extends Scene {
         //CAM
         const cam = this.cameras.main;
         cam.startFollow(this.player.textures.sprite, true, 0.05, 0.05);
-        cam.setBounds(0, 0, 9999999, 999999)
+        cam.setBounds(0, 0, this.curLayer.width, this.curLayer.height)
         cam.setZoom(1.6)
         
         //KEYS
-        this.pressedKeys = new Set();
-        this.pressedDirectionalKeys = new Set()
-        this.releasedKeys = new Set();
-
-        this.input.keyboard.on('keydown', (event) => {
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.add(event.code)}
-            else {this.pressedKeys.add(event.code)};
-        });
-
-        this.input.keyboard.on('keyup', (event) => {
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {this.pressedDirectionalKeys.delete(event.code)}
-            else {this.pressedKeys.delete(event.code)};
-            this.releasedKeys.add(event.code);
-        });
+        this.keyhandler = new OverworldKeyset(this)
 
         EventBus.emit('gameReady');
 
@@ -144,51 +131,9 @@ class OverworldScene extends Scene {
     update() {
         if (this.checkEncounter()) {this.startEncounter(); return}
         for (let actor of this.actors) {actor.update()}
+        this.keyhandler.update()
         
-        if (this.pressedDirectionalKeys && !this.player.moving) {
-            let lastKey  = [...this.pressedDirectionalKeys][this.pressedDirectionalKeys.size - 1];
-            if (lastKey === 'KeyW') {
-                    this.player.setMove('W');     
-                }
-                else if (lastKey === 'KeyA') {
-                    this.player.setMove('A');
-                }
-                else if (lastKey === 'KeyS') {
-                    this.player.setMove('S');
-
-                }
-                else if (lastKey === 'KeyD') {
-                    this.player.setMove('D');
-                }
-        }
-
-
-        for (const key of this.pressedKeys) {
-            if (key === 'ShiftLeft') {
-                    this.player.run()
-                }
-        }
-
-        for (const key of this.releasedKeys) {
-            if (key === 'KeyC') {
-                this.devil.target = this.player
-                if (this.devil.chase === false) {this.devil.chase = true}
-                else {this.devil.chase = false}
-                
-            }
-            if (key === 'ShiftLeft') {
-                this.player.running = false
-            }
-
-            if (key === 'KeyP') {
-                console.log((this.player.hitbox.x-this.devil.hitbox.x)/TILESIZE,
-                (this.player.hitbox.y-this.devil.hitbox.y)/TILESIZE)
-
-            }
-        }
-
-        this.releasedKeys.clear(); 
-    }
+    } 
 }
 
 export default OverworldScene;

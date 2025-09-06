@@ -1,6 +1,5 @@
-import { EventBus } from '../EventBus';
-import { Scene, Tilemaps } from 'phaser';
-import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy, pathToTile} from '../elements';
+import {Scene} from 'phaser';
+import {SCREENWIDTH, SCREENHEIGHT, TILESIZE , BATTLESIZE, Player, Enemy, pathToTile, BattleKeyset} from '../elements';
 import {BattleGUI} from '../ui'
 
 class GridTile {
@@ -110,20 +109,8 @@ class Battle extends Scene {
 
         for (let actor of this.actors) {actor.setScene(this, actor.name, {x:this.startX, y:this.startY})}
 
-        //KEYS
-        this.pressedKeys = new Set();
-        this.releasedKeys = new Set();
-
-        this.input.keyboard.on('keydown', (event) => {
-            this.pressedKeys.add(event.code)
-        });
-
-        this.input.keyboard.on('keyup', (event) => {
-            this.pressedKeys.delete(event.code)
-            this.releasedKeys.add(event.code);
-        });
-
         this.gui = new BattleGUI(this)
+        this.keyhandler = new BattleKeyset(this)
     }
 
     tilePropertySetter(mapData, layer) {
@@ -232,13 +219,7 @@ class Battle extends Scene {
 
     update() {
         for (let actor of this.actors) {actor.update()}
-
-        for (const key of this.releasedKeys) {
-            // console.log(key)
-            if (key === 'KeyP') {this.gui.setState("fightMode")}
-            else if (key === 'KeyO') {this.gui.setState("tacticalMap")}
-        }
-        this.releasedKeys.clear()
+        this.keyhandler.update()
     }
 }
 
