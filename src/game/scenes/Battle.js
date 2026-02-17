@@ -43,6 +43,12 @@ class Battle extends Scene {
         this.filledTiles = new Set()
 
         this.tiles = data.tiles
+        this.attacking = false //Player attacking switch
+        this.camSensitivity = 0.03
+        this.maxCamScrollFromCenter = {xMin: -1000, xMax: 1000, yMin:-1000, yMax: 1000}
+        this.virtualMouse = new Phaser.Math.Vector2(0, 0);
+        this.mouseDebug = this.add.graphics();
+        this.startFramesOffset = 0
 
     }
 
@@ -111,6 +117,13 @@ class Battle extends Scene {
 
         this.gui = new BattleGUI(this)
         this.keyhandler = new BattleKeyset(this)
+        this.cam = this.cameras.main
+        this.camCenterX = this.cam.scrollX + this.cam.width / 2;
+        this.camCenterY = this.cam.scrollY + this.cam.height / 2;
+        this.virtualMouse.set(
+            this.camCenterX,
+            this.camCenterY
+        );
     }
 
     tilePropertySetter(mapData, layer) {
@@ -220,6 +233,60 @@ class Battle extends Scene {
     update() {
         for (let actor of this.actors) {actor.update()}
         this.keyhandler.update()
+        if (this.combatMode) {
+            this.combatUpdate()
+        }
+
+    }
+
+    combatUpdate() {
+        
+        this.input.on('pointermove', (pointer) => {
+        if (this.input.mouse.locked ) {
+            let dx = pointer.movementX * this.camSensitivity;
+            let dy = pointer.movementY * this.camSensitivity;
+
+            const nextX = this.virtualMouse.x + dx;
+            const nextY = this.virtualMouse.y + dy;
+
+            const insideFrame =
+                nextX > this.camCenterX + this.maxCamScrollFromCenter.xMin &&
+                nextX < this.camCenterX + this.maxCamScrollFromCenter.xMax &&
+                nextY > this.camCenterY + this.maxCamScrollFromCenter.yMin &&
+                nextY < this.camCenterY + this.maxCamScrollFromCenter.yMax;
+
+            if (insideFrame) {
+                this.cameras.main.scrollX += dx;
+                this.cameras.main.scrollY += dy;
+                this.virtualMouse.x += dx
+                this.virtualMouse.y += dy
+            }
+
+            
+            
+            this.mouseDebug.setDepth(9999);
+
+            if (pointer.leftButtonDown() && !this.attacking && this.startFramesOffset > 100) {
+                this.atkStart = new Phaser.Math.Vector2(this.virtualMouse.x, this.virtualMouse.y)
+                this.attacking = true
+                
+            }
+            else if (!pointer.leftButtonDown() && this.attacking) {
+                this.attacking = false
+            };
+
+            if (!this.attacking) {this.mouseDebug.clear()};
+            this.mouseDebug.fillStyle(0xff0000, 1);
+            this.mouseDebug.fillCircle(
+                this.virtualMouse.x,
+                this.virtualMouse.y,
+                4
+            );
+
+            console.log(pointer.movementX, pointer.movementY);
+            if (this.startFramesOffset<1000) {this.startFramesOffset+=1}
+        }
+        });
     }
 }
 

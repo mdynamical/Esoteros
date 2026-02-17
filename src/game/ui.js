@@ -99,6 +99,8 @@ class BattleGUI extends GUIComponent {
         leftCorner.add(testRect)
 
         this.onStateChange("tacticalMap", () => {
+            this.scene.attacking = false
+            this.scene.input.mouse.releasePointerLock();
             this.scene.toggleMapActivation(true)
             for (let part of Object.values(this.scene.actors[1].body.parts)) {
                 // if (part.hitbox) {part.hitbox.setActive(false).disableInteractive().setVisible(false)}
@@ -113,6 +115,11 @@ class BattleGUI extends GUIComponent {
         this.onStateChange("fightMode", () => {
             this.scene.toggleMapActivation(false)
             let actor = this.scene.actors[1]
+
+            this.scene.combatMode = true
+            this.scene.input.once('pointerdown', () => {
+            this.scene.input.mouse.requestPointerLock();
+            })
 
             // checks if any part have an active hitbox, if not, initialize the hitboxes for the body
             if (!(Object.values(actor.body.parts).map(obj => obj.hitbox).find(x => Boolean(x)===true))) {

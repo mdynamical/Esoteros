@@ -221,7 +221,20 @@ class Enemy extends Character {
 }
 
 class State {
-    constructor() {
+    constructor(char, id) {
+        this.char = char
+        this.id = id
+    }
+
+    start() {
+
+    }
+
+    loop() {
+
+    }
+    
+    end() {
 
     }
 
@@ -376,10 +389,11 @@ class Body {
 }
 
 class Battle {
-    constructor() {
-
+    constructor(actors) {
+        this.actors = actors
     }
 }
+
 
 class Attributes {
     constructor() {
@@ -455,8 +469,8 @@ class OverworldKeyset extends Keyhandler {
         const events = {
             "enemyChase": () => {
                 scene.devil.target = scene.player
-                if (scene.devil.chase === false) {scene.devil.chase = true}
-                else {scene.devil.chase = false}
+                if (scene.devil.chase === false) {scene.devil.chase = true; console.log("chasing")}
+                else {scene.devil.chase = false; console.log("stopped")}
             },
 
             "toggleRun": (active) => scene.player.running = active,
